@@ -202,6 +202,13 @@ export function IdentityGenerator() {
                 >
                   {showTestPanel ? "Hide" : "Show"} Test Panel
                 </Button>
+                <Button
+                  onClick={() => window.open('/api/emails/inbound', '_blank')}
+                  variant="outline"
+                  className="border-border text-foreground hover:bg-accent hover:text-accent-foreground bg-transparent"
+                >
+                  Test Webhook
+                </Button>
               </div>
             </CardContent>
           </Card>

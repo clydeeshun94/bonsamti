@@ -27,6 +27,7 @@ export function extractPlainTextFromHtml(html: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
     .trim()
 }
 
