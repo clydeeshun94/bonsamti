@@ -1,7 +1,7 @@
 "use server"
 
 import { database } from "@/lib/data"
-import { resendSending } from "@/lib/resend"
+import { resend, resendSending } from '@/lib/resend';
 import { generateRandomName, generateEmail, generateStrongPassword } from "@/lib/utils/generators"
 import type { Account, GenerateIdentityRequest } from "@/lib/types"
 
