@@ -37,5 +37,5 @@ export function validateEmailAddress(email: string): boolean {
 }
 
 export function isValidBonsamtiEmail(email: string): boolean {
-  return email.endsWith("@bonsamti.dev") && validateEmailAddress(email)
+  return email.endsWith("@bonsamti.onrender.com") && validateEmailAddress(email)
 }

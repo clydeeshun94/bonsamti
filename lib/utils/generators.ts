@@ -57,7 +57,7 @@ export function generateEmail(firstName: string, lastName: string): string {
   const randomNum = Math.floor(Math.random() * 9999)
   const cleanFirst = firstName.toLowerCase().replace(/[^a-z]/g, "")
   const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, "")
-  return `${cleanFirst}.${cleanLast}${randomNum}@bonsamti.dev`
+  return `${cleanFirst}.${cleanLast}${randomNum}@bonsamti.onrender.com`
 }
 
 export function generateStrongPassword(): string {

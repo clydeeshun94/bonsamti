@@ -8,13 +8,13 @@ Your Bonsamti app is now configured to use Resend for both sending and receiving
 - `RESEND_API_KEY`: Full access key for admin operations
 - `RESEND_SENDING_KEY`: Sending-only key for email delivery
 - `RESEND_SIGNING_SECRET`: Webhook signature verification
-- `RESEND_DOMAIN`: Your domain for email addresses (bonsamti.dev)
+- `RESEND_DOMAIN`: Your domain for email addresses (bonsamti.onrender.com)
 
 ## Next Steps Required:
 
 ### 1. Domain Setup in Resend Dashboard
 1. Go to [Resend Dashboard](https://resend.com/domains)
-2. Add your domain: `bonsamti.dev`
+2. Add your domain: `bonsamti.onrender.com`
 3. Configure DNS records as instructed by Resend:
    - MX records for receiving emails
    - SPF, DKIM, DMARC records for sending
@@ -32,11 +32,11 @@ Your Bonsamti app is now configured to use Resend for both sending and receiving
 4. Test sending email from the compose feature
 
 ## Features Now Available:
-- ✅ Generate disposable emails with `@bonsamti.dev` domain
+- ✅ Generate disposable emails with `@bonsamti.onrender.com` domain
 - ✅ Receive emails via Resend webhook
 - ✅ Send emails with branded HTML templates
 - ✅ 24-hour automatic cleanup
 - ✅ Real-time email notifications
 
 ## Domain Requirements:
-You need to own `bonsamti.dev` domain and configure it in Resend. If you don't own this domain, update `RESEND_DOMAIN` in your environment variables to a domain you control.
+You need to own `bonsamti.onrender.com` domain and configure it in Resend. If you don't own this domain, update `RESEND_DOMAIN` in your environment variables to a domain you control.
