@@ -1,6 +1,7 @@
 "use server"
 
 import { database } from "@/lib/data"
+import { resendSending } from "@/lib/resend"
 import { generateRandomName, generateEmail, generateStrongPassword } from "@/lib/utils/generators"
 import type { Account, GenerateIdentityRequest } from "@/lib/types"
 
@@ -153,9 +154,38 @@ export async function sendEmail(request: {
       }
     }
 
-    // For now, we'll store sent emails as regular emails in the system
-    // In a real implementation, this would integrate with an email service like Resend
-    const sentEmail = await database.emails.create({
+    // Send email via Resend
+    try {
+      await resendSending.emails.send({
+        from: `${senderAccount.first_name} ${senderAccount.last_name} <${senderAccount.email}>`,
+        to: request.to,
+        subject: request.subject,
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d1b1b 100%); padding: 20px; border-radius: 8px 8px 0 0;">
+            <h2 style="color: #ff6b6b; margin: 0; font-size: 24px;">📧 Bonsamti Mail</h2>
+            <p style="color: #cccccc; margin: 5px 0 0 0; font-size: 14px;">Sent from the digital underworld</p>
+          </div>
+          <div style="background: #ffffff; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+            <div style="white-space: pre-wrap; line-height: 1.6; color: #333333;">${request.body.replace(/\n/g, '<br>')}</div>
+            <hr style="margin: 30px 0; border: none; border-top: 1px solid #e0e0e0;">
+            <p style="font-size: 12px; color: #666666; margin: 0;">
+              This email was sent from a temporary Bonsamti identity that expires in 24 hours.<br>
+              From: ${senderAccount.email}
+            </p>
+          </div>
+        </div>`,
+        text: `${request.body}\n\n---\nThis email was sent from a temporary Bonsamti identity that expires in 24 hours.\nFrom: ${senderAccount.email}`,
+      })
+    } catch (resendError) {
+      console.error("Resend error:", resendError)
+      return {
+        success: false,
+        error: "Failed to send email via Resend",
+      }
+    }
+
+    // Store sent email in database for record keeping
+    await database.emails.create({
       account_id: request.fromAccountId,
       sender: senderAccount.email,
       recipient: request.to,

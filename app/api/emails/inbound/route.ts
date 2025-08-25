@@ -4,47 +4,48 @@ import { headers } from "next/headers"
 import crypto from "crypto"
 import { sanitizeEmailContent, extractPlainTextFromHtml } from "@/lib/utils/email-parser"
 
-// Types for inbound email webhook payload (supports multiple providers)
+// Types for Resend inbound email webhook payload
 interface InboundEmailPayload {
+  type: string
+  created_at: string
+  data: {
+    from: string
+    to: string[]
+    subject: string
+    html?: string
+    text?: string
+    reply_to?: string
+    message_id: string
+    date: string
+  }
+}
+
+// Legacy format support
+interface LegacyInboundEmailPayload {
   from: string
   to: string[] | string
   subject: string
   text?: string
   html?: string
-  plain?: string // CloudMailin format
+  plain?: string
   reply_to?: string
   date: string
   message_id?: string
-  // CloudMailin specific fields
-  envelope?: {
-    to: string
-    from: string
-  }
 }
 
-// Verify webhook signature with proper HMAC validation
+// Verify Resend webhook signature
 function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
   if (!signature || !secret) {
-    console.log("[v0] No signature or secret provided, skipping verification in development")
+    console.log("[Bonsamti] No signature or secret provided, skipping verification in development")
     return process.env.NODE_ENV === "development"
   }
 
   try {
-    // Handle different signature formats
-    let expectedSignature: string
-
-    if (signature.startsWith("sha256=")) {
-      // GitHub/Resend style signature
-      const providedSignature = signature.replace("sha256=", "")
-      expectedSignature = crypto.createHmac("sha256", secret).update(payload).digest("hex")
-      return crypto.timingSafeEqual(Buffer.from(providedSignature), Buffer.from(expectedSignature))
-    } else {
-      // CloudMailin style signature
-      expectedSignature = crypto.createHmac("sha256", secret).update(payload).digest("hex")
-      return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
-    }
+    // Resend uses svix-timestamp and svix-signature headers
+    const expectedSignature = crypto.createHmac("sha256", secret).update(payload).digest("base64")
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
   } catch (error) {
-    console.error("[v0] Signature verification error:", error)
+    console.error("[Bonsamti] Signature verification error:", error)
     return false
   }
 }
@@ -57,34 +58,31 @@ function normalizeEmailAddresses(addresses: string[] | string): string[] {
   return [addresses]
 }
 
-// Extract email content with fallback options
-function extractEmailContent(payload: InboundEmailPayload): string {
-  return payload.text || payload.plain || payload.html || ""
+// Extract email content from Resend payload
+function extractEmailContent(data: any): string {
+  return data.text || data.plain || data.html || ""
 }
 
 export async function POST(request: NextRequest) {
   try {
     const headersList = headers()
     const signature =
-      headersList.get("x-webhook-signature") ||
-      headersList.get("x-cloudmailin-signature") ||
-      headersList.get("signature") ||
+      headersList.get("svix-signature") ||
+      headersList.get("webhook-signature") ||
       ""
 
     const rawBody = await request.text()
     console.log("[Bonsamti] Received webhook request, body length:", rawBody.length)
-    console.log("[Bonsamti] Headers:", Object.fromEntries(headersList.entries()))
 
     // Verify webhook signature
-    const webhookSecret =
-      process.env.RESEND_SIGNING_SECRET || process.env.CLOUDMAILIN_SECRET || process.env.WEBHOOK_SECRET
+    const webhookSecret = process.env.RESEND_SIGNING_SECRET
 
     if (webhookSecret && !verifyWebhookSignature(rawBody, signature, webhookSecret)) {
       console.error("[Bonsamti] Invalid webhook signature")
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
     }
 
-    let payload: InboundEmailPayload
+    let payload: InboundEmailPayload | LegacyInboundEmailPayload
     try {
       payload = JSON.parse(rawBody)
     } catch (parseError) {
@@ -93,29 +91,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
     }
 
-    console.log("[Bonsamti] Parsed inbound email:", {
-      from: payload.from,
-      to: payload.to,
-      subject: payload.subject,
-      hasText: !!payload.text,
-      hasHtml: !!payload.html,
-      hasPlain: !!payload.plain,
-      envelope: payload.envelope,
+    // Handle Resend webhook format
+    let emailData: any
+    if ('type' in payload && payload.type === 'email.received') {
+      emailData = payload.data
+    } else {
+      // Legacy format
+      emailData = payload
+    }
+
+    console.log("[Bonsamti] Processing email:", {
+      from: emailData.from,
+      to: emailData.to,
+      subject: emailData.subject,
     })
 
-    // Validate required fields
-    if (!payload.from || !payload.to) {
+    if (!emailData.from || !emailData.to) {
       console.error("[Bonsamti] Invalid email payload: missing from or to fields")
       return NextResponse.json({ error: "Invalid email payload: missing required fields" }, { status: 400 })
     }
 
     // Normalize recipient addresses
-    const recipients = normalizeEmailAddresses(payload.to)
-    let emailContent = extractEmailContent(payload)
+    const recipients = normalizeEmailAddresses(emailData.to)
+    let emailContent = extractEmailContent(emailData)
     
     // If we have HTML content, try to extract plain text
-    if (payload.html && !emailContent) {
-      emailContent = extractPlainTextFromHtml(payload.html)
+    if (emailData.html && !emailContent) {
+      emailContent = extractPlainTextFromHtml(emailData.html)
     }
     
     // Sanitize the content
@@ -158,8 +160,8 @@ export async function POST(request: NextRequest) {
         // Store the email in the database
         const storedEmail = await database.emails.create({
           account_id: account.id,
-          sender: payload.from,
-          subject: payload.subject || "No Subject",
+          sender: emailData.from,
+          subject: emailData.subject || "No Subject",
           body: emailContent,
           recipient: recipientEmail,
         })
@@ -208,8 +210,9 @@ export async function GET() {
   return NextResponse.json({
     status: "ok",
     message: "Inbound email webhook endpoint is active",
-    endpoint: "https://bonsamti.onrender.com/api/emails/inbound",
-    cloudmailin_address: "93a9b47c12fc000c4c24@cloudmailin.net",
+    endpoint: "/api/emails/inbound",
+    provider: "Resend",
+    domain: process.env.RESEND_DOMAIN || "bonsamti.dev",
     timestamp: new Date().toISOString(),
   })
 }
