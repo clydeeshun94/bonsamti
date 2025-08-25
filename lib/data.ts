@@ -1,5 +1,5 @@
 import type { Account, Email } from "./types"
-import { createClient } from "./supabase/server"
+import { supabasePublic } from "./supabase/public-client"
 
 const demoEmails = [
   {
@@ -22,19 +22,16 @@ const demoEmails = [
 export const database = {
   accounts: {
     create: async (account: Omit<Account, "id" | "created_at">): Promise<Account> => {
-      const supabase = await createClient()
-
-      const { data, error } = await supabase.from("accounts").insert(account).select().single()
+      const { data, error } = await supabasePublic.from("accounts").insert(account).select().single()
 
       if (error) throw error
 
       // Add demo emails after account creation
       setTimeout(async () => {
-        const supabaseClient = await createClient()
         for (let i = 0; i < demoEmails.length; i++) {
           setTimeout(
             async () => {
-              await supabaseClient.from("emails").insert({
+              await supabasePublic.from("emails").insert({
                 account_id: data.id,
                 sender: demoEmails[i].sender,
                 subject: demoEmails[i].subject,
@@ -50,52 +47,44 @@ export const database = {
     },
 
     findByEmail: async (email: string): Promise<Account | null> => {
-      const supabase = await createClient()
-
-      const { data, error } = await supabase.from("accounts").select().eq("email", email).single()
+      const { data, error } = await supabasePublic.from("accounts").select().eq("email", email).single()
 
       if (error) return null
       return data
     },
 
     findById: async (id: string): Promise<Account | null> => {
-      const supabase = await createClient()
-
-      const { data, error } = await supabase.from("accounts").select().eq("id", id).single()
+      const { data, error } = await supabasePublic.from("accounts").select().eq("id", id).single()
 
       if (error) return null
       return data
     },
 
     deleteOlderThan: async (hours: number): Promise<number> => {
-      const supabase = await createClient()
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 
-      const { data: accountsToDelete } = await supabase.from("accounts").select("id").lt("created_at", cutoff)
+      const { data: accountsToDelete } = await supabasePublic.from("accounts").select("id").lt("created_at", cutoff)
 
       if (!accountsToDelete || accountsToDelete.length === 0) return 0
 
-      const { error } = await supabase.from("accounts").delete().lt("created_at", cutoff)
+      const { error } = await supabasePublic.from("accounts").delete().lt("created_at", cutoff)
 
       if (error) throw error
       return accountsToDelete.length
     },
 
     getAll: async (): Promise<Account[]> => {
-      const supabase = await createClient()
-
-      const { data, error } = await supabase.from("accounts").select().order("created_at", { ascending: false })
+      const { data, error } = await supabasePublic.from("accounts").select().order("created_at", { ascending: false })
 
       if (error) throw error
       return data || []
     },
 
     getStats: async (): Promise<{ total: number; active: number; expired: number }> => {
-      const supabase = await createClient()
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-      const { data: allAccounts } = await supabase.from("accounts").select("created_at")
-      const { data: activeAccounts } = await supabase
+      const { data: allAccounts } = await supabasePublic.from("accounts").select("created_at")
+      const { data: activeAccounts } = await supabasePublic
         .from("accounts")
         .select("created_at")
         .gt("created_at", twentyFourHoursAgo)
@@ -110,18 +99,14 @@ export const database = {
 
   emails: {
     create: async (email: Omit<Email, "id" | "received_at">): Promise<Email> => {
-      const supabase = await createClient()
-
-      const { data, error } = await supabase.from("emails").insert(email).select().single()
+      const { data, error } = await supabasePublic.from("emails").insert(email).select().single()
 
       if (error) throw error
       return data
     },
 
     findByAccountId: async (accountId: string): Promise<Email[]> => {
-      const supabase = await createClient()
-
-      const { data, error } = await supabase
+      const { data, error } = await supabasePublic
         .from("emails")
         .select()
         .eq("account_id", accountId)
@@ -132,39 +117,31 @@ export const database = {
     },
 
     findById: async (id: string): Promise<Email | null> => {
-      const supabase = await createClient()
-
-      const { data, error } = await supabase.from("emails").select().eq("id", id).single()
+      const { data, error } = await supabasePublic.from("emails").select().eq("id", id).single()
 
       if (error) return null
       return data
     },
 
     delete: async (id: string): Promise<void> => {
-      const supabase = await createClient()
-
-      const { error } = await supabase.from("emails").delete().eq("id", id)
+      const { error } = await supabasePublic.from("emails").delete().eq("id", id)
 
       if (error) throw error
     },
 
     deleteByAccountIds: async (accountIds: string[]): Promise<number> => {
-      const supabase = await createClient()
-
-      const { data: emailsToDelete } = await supabase.from("emails").select("id").in("account_id", accountIds)
+      const { data: emailsToDelete } = await supabasePublic.from("emails").select("id").in("account_id", accountIds)
 
       if (!emailsToDelete || emailsToDelete.length === 0) return 0
 
-      const { error } = await supabase.from("emails").delete().in("account_id", accountIds)
+      const { error } = await supabasePublic.from("emails").delete().in("account_id", accountIds)
 
       if (error) throw error
       return emailsToDelete.length
     },
 
     getCount: async (): Promise<number> => {
-      const supabase = await createClient()
-
-      const { count, error } = await supabase.from("emails").select("*", { count: "exact", head: true })
+      const { count, error } = await supabasePublic.from("emails").select("*", { count: "exact", head: true })
 
       if (error) throw error
       return count || 0
